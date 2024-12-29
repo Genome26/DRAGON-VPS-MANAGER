@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
 # uexpired
-# 
+#
 # Reads /root/timeid, compares user expiry times with current time,
-# locks expired users, and kills their Dropbear sessions.
+# locks expired users, and kills their Dropbear sessions (if any).
 #
 ###############################################################################
 function n() {
@@ -30,19 +30,26 @@ time_now=$(date +%Y%m%d%H%M)
 
 # Read /root/timeid line by line
 while read -r user timeid; do
-    # Skip empty lines
+    # Skip empty lines or malformed lines
     [ -z "$user" ] && continue
     [ -z "$timeid" ] && continue
-    
+
+    # If current time is beyond the user's expiry
     if [ "$time_now" -gt "$timeid" ]; then
+        # Lock the user
         passwd -l "$user"
-        # Record the locked user with timestamp
-        echo "$time_now $user $timeid" >> /root/expired.log
-        # Get PID from n() output, if any exist for this user
+
+        # Before appending to /root/expired.log, check if we already have this user/timeid
+        if ! grep -qE "^[^ ]+[[:space:]]+$user[[:space:]]+$timeid\$" /root/expired.log; then
+            echo "$time_now $user $timeid" >> /root/expired.log
+        fi
+
+        # Kill dropbear session(s), if any
         pd=$(n | grep -w "$user" | cut -d ' ' -f1)
         if [ -n "$pd" ]; then
             kill "$pd"
         fi
     fi
 done < /root/timeid
+
 exit 0
