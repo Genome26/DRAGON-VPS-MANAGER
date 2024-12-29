@@ -878,7 +878,7 @@ backup_users() {
     rm /root/backup.vps 1>/dev/null 2>/dev/null
     ShellBot.answerCallbackQuery --callback_query_id ${callback_query_id[$id]} \
         --text "♻️ CREATING USER BACKUP"
-    tar cvf /root/backup.vps /root/usuarios.db /etc/shadow /etc/passwd /etc/group /etc/gshadow /etc/bot /etc/VPSManager/senha 1>/dev/null 2>/dev/null
+    tar cvf /root/backup.vps /root/usuarios.db /etc/shadow /etc/passwd /etc/group /etc/gshadow /root/expired.log /etc/bot /root/timeid /etc/VPSManager/senha 1>/dev/null 2>/dev/null
     ShellBot.sendDocument --chat_id ${id_admin} \
         --document "@/root/backup.vps" \
         --caption "$(echo -e "♻️ USER BACKUP ♻️")"

@@ -1,13 +1,48 @@
-#!/bin/bash
-fun_exp () {
-(
-for _user in $(awk -F: '$3>=1000 {print $1}' /etc/passwd | grep -v nobody); do
-   if [[ $(chage -l $_user |grep "Account expires" |awk -F ': ' '{print $2}') != never ]]; then
-       [[ $(date +%s) -gt $(date '+%s' -d"$(chage -l $_user |grep "Account expires" |awk -F ': ' '{print $2}')") ]] && userexp=$(expr $userexp + 1)
-   fi
-   [[ userexp == [0-9] ]] && userexp=0$userexp
-done
-echo "$userexp" > /etc/VPSManager/Exp
-) &
+#!/usr/bin/env bash
+#
+# uexpired
+# 
+# Reads /root/timeid, compares user expiry times with current time,
+# locks expired users, and kills their Dropbear sessions.
+#
+###############################################################################
+function n() {
+    LOG="/var/log/auth.log"
+    # Get PIDs for all running dropbear processes
+    data=( $(ps aux | grep [d]ropbear | awk '{print $2}') )
+    # Filter log entries: only keep "Password auth succeeded"
+    grep -i dropbear "$LOG" | grep -i "Password auth succeeded" > /tmp/login-db.txt
+    # For each dropbear PID, see which user is associated
+    for PID in "${data[@]}"; do
+        grep "dropbear\[$PID\]" /tmp/login-db.txt > /tmp/login-db-pid.txt
+        NUM=$(wc -l < /tmp/login-db-pid.txt)
+        USER=$(awk '{print $10}' /tmp/login-db-pid.txt)
+        IP=$(awk '{print $12}' /tmp/login-db-pid.txt)
+        if [ "$NUM" -eq 1 ]; then
+            echo "$PID - $USER - $IP"
+        fi
+    done
+    rm -f /tmp/login-db.txt /tmp/login-db-pid.txt
 }
-fun_exp > /dev/null 2>&1
+
+# Get current date/time in the same format as timeid: YYYYmmddHHMM
+time_now=$(date +%Y%m%d%H%M)
+
+# Read /root/timeid line by line
+while read -r user timeid; do
+    # Skip empty lines
+    [ -z "$user" ] && continue
+    [ -z "$timeid" ] && continue
+    
+    if [ "$time_now" -gt "$timeid" ]; then
+        passwd -l "$user"
+        # Record the locked user with timestamp
+        echo "$time_now $user $timeid" >> /root/expired.log
+        # Get PID from n() output, if any exist for this user
+        pd=$(n | grep -w "$user" | cut -d ' ' -f1)
+        if [ -n "$pd" ]; then
+            kill "$pd"
+        fi
+    fi
+done < /root/timeid
+exit 0

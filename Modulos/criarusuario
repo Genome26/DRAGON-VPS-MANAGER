@@ -315,6 +315,9 @@ echo -ne "\033[1;32mLimit of connections:\033[1;37m ";read sshlimiter
 }
 final=$(date "+%Y-%m-%d" -d "+$dias days")
 gui=$(date "+%d/%m/%Y" -d "+$dias days")
+gui1=$(date "+%Y%m%d%H%M" -d "+$dias days")
+echo "$username $gui1" >> /root/timeid 2>/dev/null
+echo "/usr/bin/uexpired" | at -t "$gui1"
 pass=$(perl -e 'print crypt($ARGV[0], "password")' $password)
 useradd -e $final -M -s /bin/false -p $pass $username >/dev/null 2>&1 &
 echo "$password" >/etc/VPSManager/senha/$username

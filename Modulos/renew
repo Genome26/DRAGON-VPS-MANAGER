@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+#
+# renew-expired.sh
+#
+# Reads /root/expired.log (format: "<time_now> <user> <timeid>"),
+# where time_now and timeid are YYYYmmddHHMM, then:
+# 1) Displays each expired user on a single line (user, locked-at, prev-expiry).
+# 2) Asks which user to renew and how many days to add.
+# 3) Calculates the new expiry, updates /root/timeid, schedules an 'at' job.
+# 4) Removes the user from /root/expired.log.
+
+###############################################################################
+# Configuration / file paths
+###############################################################################
+EXPIRED_LOG="/root/expired.log"
+TIMEID_FILE="/root/timeid"
+UEXPIRED_CMD="/bin/uexpired"  # The script to run with 'at'
+
+###############################################################################
+# 1) Read /root/expired.log and display each expired user in a single line
+###############################################################################
+if [ ! -s "$EXPIRED_LOG" ]; then
+  echo "No expired users found (missing or empty $EXPIRED_LOG)."
+  exit 0
+fi
+
+# Read all lines into an array
+mapfile -t expired_lines < "$EXPIRED_LOG"
+
+echo "Expired users (one line each):"
+for line in "${expired_lines[@]}"; do
+    # Each line has 3 parts: locked_at(user-locked-time), user, old_timeid(previous-expiry)
+    read -r locked_at user old_timeid <<< "$line"
+
+    # Convert locked_at -> human-readable
+    locked_at_hr=$(date -d "$locked_at" "+%F %T" 2>/dev/null)
+    [ -z "$locked_at_hr" ] && locked_at_hr="(unparsable: $locked_at)"
+
+    # Convert old_timeid -> human-readable
+    old_timeid_hr=$(date -d "$old_timeid" "+%F %T" 2>/dev/null)
+    [ -z "$old_timeid_hr" ] && old_timeid_hr="(unparsable: $old_timeid)"
+
+    # Show them all on one line
+    echo "  - User: $user   Locked at: $locked_at_hr   Previous expiry: $old_timeid_hr"
+done
+echo
+
+###############################################################################
+# 2) We still need the sorted unique user list to confirm user selection
+###############################################################################
+mapfile -t expired_users < <(awk '{print $2}' "$EXPIRED_LOG" | sort -u)
+
+# Ask which user to renew
+read -rp "Enter the name of the user to renew: " seluser
+
+# Verify seluser is in the expired_users array
+found=false
+for usr in "${expired_users[@]}"; do
+    if [[ "$usr" == "$seluser" ]]; then
+        found=true
+        break
+    fi
+done
+
+if [[ "$found" == false ]]; then
+    echo "User '$seluser' is not in the expired list or does not exist."
+    exit 1
+fi
+
+###############################################################################
+# 3) Ask how many days to renew
+###############################################################################
+read -rp "Enter the number of days to renew for $seluser: " days
+
+# Validate that $days is numeric
+if ! [[ "$days" =~ ^[0-9]+$ ]]; then
+    echo "Error: '$days' is not a positive integer."
+    exit 1
+fi
+
+###############################################################################
+# 4) Calculate new expiry time in YYYYmmddHHMM format
+###############################################################################
+new_timeid=$(date -d "+$days days" "+%Y%m%d%H%M")
+
+echo "Renewing user '$seluser' until $new_timeid..."
+
+###############################################################################
+# 5) Update /root/timeid with the new expiry
+###############################################################################
+# Remove any existing line for this user, then add a fresh one
+sed -i "/^${seluser}[[:space:]]/d" "$TIMEID_FILE"
+echo "$seluser $new_timeid" >> "$TIMEID_FILE"
+
+###############################################################################
+# 6) Schedule an 'at' job to run /bin/uexpired at $new_timeid
+###############################################################################
+echo "$UEXPIRED_CMD" | at -t "$new_timeid"
+
+###############################################################################
+# 7) Remove the user from /root/expired.log
+###############################################################################
+# The line in /root/expired.log has the user in the second column
+sed -i "/[[:space:]]$seluser[[:space:]]/d" "$EXPIRED_LOG"
+
+echo "Done. User '$seluser' has been renewed until $new_timeid."
+exit 0
