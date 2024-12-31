@@ -44,7 +44,7 @@ while read -r user timeid; do
     # If current time is beyond the user's expiry
     if [ "$time_now" -gt "$timeid" ]; then
         # Lock the user
-        passwd -l "$user"
+        passwd -l "$user" >/dev/null
 
         # Before appending to /root/expired.log, check if we already have this user/timeid
         if ! grep -qE "^[^ ]+[[:space:]]+$user[[:space:]]+$timeid\$" /root/expired.log; then
