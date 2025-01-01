@@ -51,15 +51,7 @@ useradd -M -s /bin/false $nome
 (echo $pass;echo $pass) |passwd $nome > /dev/null 2>&1
 echo "$pass" > /etc/VPSManager/senha/$nome
 echo "$nome $limit" >> /root/usuarios.db
-echo "#!/bin/bash
-pkill -f "$nome"
-userdel --force $nome
-grep -v ^$nome[[:space:]] /root/usuarios.db > /tmp/ph ; cat /tmp/ph > /root/usuarios.db
-rm /etc/VPSManager/senha/$nome > /dev/null 2>&1
-rm -rf /etc/VPSManager/userteste/$nome.sh
-exit" > /etc/VPSManager/userteste/$nome.sh
-chmod +x /etc/VPSManager/userteste/$nome.sh
-at -f /etc/VPSManager/userteste/$nome.sh now + $u_temp min > /dev/null 2>&1
+echo "/usr/bin/testkill $nome" | at now + $u_temp minutes
 clear
     echo -e "\033[1;32m===================================="
     echo -e "\033[1;32m   🐉ㅤDRAGON VPS MANAGERㅤ🐉  " 
