@@ -1,0 +1,26 @@
+#!/bin/bash
+user="$1"
+function n() {
+    LOG="/var/log/auth.log"
+    # Get PIDs for all running dropbear processes
+    data=( $(ps aux | grep [d]ropbear | awk '{print $2}') )
+    # Filter log entries: only keep "Password auth succeeded"
+    grep -i dropbear "$LOG" | grep -i "Password auth succeeded" > /tmp/login-db.txt
+    # For each dropbear PID, see which user is associated
+    for PID in "${data[@]}"; do
+        grep "dropbear\[$PID\]" /tmp/login-db.txt > /tmp/login-db-pid.txt
+        NUM=$(wc -l < /tmp/login-db-pid.txt)
+        USER=$(awk '{print $10}' /tmp/login-db-pid.txt)
+        IP=$(awk '{print $12}' /tmp/login-db-pid.txt)
+        if [ "$NUM" -eq 1 ]; then
+            echo "$PID - $USER - $IP"
+        fi
+    done
+    rm -f /tmp/login-db.txt /tmp/login-db-pid.txt
+}
+
+pd=$(n|grep $user|cut -d ' ' -f1)
+userdel --force $user
+kill $pd
+grep -v ^$user[[:space:]] /root/usuarios.db > /tmp/ph ; cat /tmp/ph > /root/usuarios.db
+rm /etc/VPSManager/senha/$user > /dev/null 2>&1
