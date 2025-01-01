@@ -48,6 +48,12 @@ if ! [[ "$days" =~ ^[0-9]+$ ]]; then
   exit 1
 fi
 
+# Check if user exists in the system
+if ! id "$selectedUser" &>/dev/null; then
+  echo "Error: User '$selectedUser' does not exist on this system."
+  exit 1
+fi
+
 #==============================================================================
 # 2) Compute new expiry (YYYYmmddHHMM) and update /root/timeid
 #==============================================================================
