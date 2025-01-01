@@ -12,7 +12,6 @@ function n() {
     data=( $(ps aux | grep [d]ropbear | awk '{print $2}') )
     # Filter log entries: only keep "Password auth succeeded"
     grep -i dropbear "$LOG" | grep -i "Password auth succeeded" > /tmp/login-db.txt
-    
     # For each dropbear PID, see which user is associated
     for PID in "${data[@]}"; do
         grep "dropbear\[$PID\]" /tmp/login-db.txt > /tmp/login-db-pid.txt
@@ -23,17 +22,11 @@ function n() {
             echo "$PID - $USER - $IP"
         fi
     done
-    
     rm -f /tmp/login-db.txt /tmp/login-db-pid.txt
 }
 
 # Get current date/time in the same format as timeid: YYYYmmddHHMM
 time_now=$(date +%Y%m%d%H%M)
-
-# Ensure /root/expired.log exists
-if [ ! -f /root/expired.log ]; then
-    touch /root/expired.log
-fi
 
 # Read /root/timeid line by line
 while read -r user timeid; do
@@ -41,10 +34,10 @@ while read -r user timeid; do
     [ -z "$user" ] && continue
     [ -z "$timeid" ] && continue
 
-    # If current time is beyond the user's expiry
+    # If current time is beyond or at the user's expiry
     if [ "$time_now" -ge "$timeid" ]; then
         # Lock the user
-        passwd -l "$user" >/dev/null
+        passwd -l "$user">/dev/null
 
         # Before appending to /root/expired.log, check if we already have this user/timeid
         if ! grep -qE "^[^ ]+[[:space:]]+$user[[:space:]]+$timeid\$" /root/expired.log; then
