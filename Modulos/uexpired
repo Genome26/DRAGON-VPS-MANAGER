@@ -42,7 +42,7 @@ while read -r user timeid; do
     [ -z "$timeid" ] && continue
 
     # If current time is beyond the user's expiry
-    if [ "$time_now" -gt "$timeid" ]; then
+    if [ "$time_now" -ge "$timeid" ]; then
         # Lock the user
         passwd -l "$user" >/dev/null
 
