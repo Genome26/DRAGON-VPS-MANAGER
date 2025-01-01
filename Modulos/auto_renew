@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+#
+# Silent renewal script
+# Usage:
+#   ./silent-renew.sh <username> <days>
+#
+
+#==============================================================================
+# CONFIG / FILE PATHS
+#==============================================================================
+EXPIRED_LOG="/root/expired.log"
+TIMEID_FILE="/root/timeid"
+UEXPIRED_CMD="/bin/uexpired"  # Script to run with 'at'
+
+#------------------------------------------------------------------------------
+# Function: parse_date (optional helper, if you want a human-readable timestamp)
+#------------------------------------------------------------------------------
+parse_date() {
+  local d="$1"
+  local parseable
+  # Convert YYYYmmddHHMM -> "YYYY-MM-DD HH:MM"
+  parseable="$(echo "$d" | sed -E 's|^([0-9]{4})([0-9]{2})([0-9]{2})([0-9]{2})([0-9]{2})$|\1-\2-\3 \4:\5|')"
+  # Return "YYYY-MM-DD HH:MM:SS" or "(unparsable)"
+  date -d "$parseable" "+%F %T" 2>/dev/null || echo "(unparsable)"
+}
+
+#==============================================================================
+# 1) Parse and validate arguments
+#==============================================================================
+selectedUser="$1"
+days="$2"
+
+if [[ -z "$selectedUser" ]]; then
+  echo "Error: No user specified."
+  echo "Usage: $0 <username> <days>"
+  exit 1
+fi
+
+if [[ -z "$days" ]]; then
+  echo "Error: No days specified."
+  echo "Usage: $0 <username> <days>"
+  exit 1
+fi
+
+# Validate days is a positive integer
+if ! [[ "$days" =~ ^[0-9]+$ ]]; then
+  echo "Error: Number of days must be a positive integer."
+  exit 1
+fi
+
+#==============================================================================
+# 2) Compute new expiry (YYYYmmddHHMM) and update /root/timeid
+#==============================================================================
+new_timeid="$(date -d "+$days days" "+%Y%m%d%H%M")"
+
+# Remove any old line for this user, then append the new expiry
+sed -i "/^${selectedUser}[[:space:]]/d" "$TIMEID_FILE" 2>/dev/null
+echo "$selectedUser $new_timeid" >> "$TIMEID_FILE"
+
+#==============================================================================
+# 3) Schedule '/bin/uexpired' to run at the new expiry time
+#==============================================================================
+echo "$UEXPIRED_CMD" | at -t "$new_timeid" >/dev/null 2>&1
+passwd -u $selectedUser >/dev/null
+
+#==============================================================================
+# 4) Remove user from /root/expired.log (if present)
+#==============================================================================
+sed -i "/[[:space:]]$selectedUser[[:space:]]/d" "$EXPIRED_LOG" 2>/dev/null
+
+#==============================================================================
+# 5) Optional: Print final confirmation
+#    (Remove this if you want zero output on success)
+#==============================================================================
+hr_new_timeid="$(parse_date "$new_timeid")"
+echo "User '$selectedUser' renewed until: $hr_new_timeid"
+
+exit 0
